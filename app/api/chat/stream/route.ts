@@ -1,22 +1,18 @@
-import { submitQuestion } from '@/lib/langgraph';
-import { api } from '@/convex/_generated/api';
-import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import {
-  AIMessage,
-  HumanMessage,
-  ToolMessage,
-} from '@langchain/core/messages';
-import { getConvexClient } from '@/lib/convex';
+import { submitQuestion } from "@/lib/langgraph";
+import { api } from "@/convex/_generated/api";
+import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
+import { getConvexClient } from "@/lib/convex";
 import {
   ChatRequestBody,
   StreamMessage,
   StreamMessageType,
   SSE_DATA_PREFIX,
   SSE_LINE_DELIMITER,
-} from '@/lib/types';
+} from "@/lib/types";
 
-export const runtime = 'edge';
+export const runtime = "edge";
 
 function sendSSEMessage(
   writer: WritableStreamDefaultWriter<Uint8Array>,
@@ -34,7 +30,7 @@ export async function POST(req: Request) {
   try {
     const { userId } = await auth();
     if (!userId) {
-      return new Response('Unauthorized', { status: 401 });
+      return new Response("Unauthorized", { status: 401 });
     }
 
     const { messages, newMessage, chatId } =
@@ -47,10 +43,10 @@ export async function POST(req: Request) {
 
     const response = new Response(stream.readable, {
       headers: {
-        'Content-Type': 'text/event-stream',
+        "Content-Type": "text/event-stream",
         // "Cache-Control": "no-cache, no-transform",
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no', // Disable buffering for nginx which is required for SSE to work properly
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no", // Disable buffering for nginx which is required for SSE to work properly
       },
     });
 
@@ -58,9 +54,7 @@ export async function POST(req: Request) {
     (async () => {
       try {
         // Send initial connection established message
-        await sendSSEMessage(writer, {
-          type: StreamMessageType.Connected,
-        });
+        await sendSSEMessage(writer, { type: StreamMessageType.Connected });
 
         // Send user message to Convex
         await convex.mutation(api.messages.send, {
@@ -71,7 +65,7 @@ export async function POST(req: Request) {
         // Convert messages to LangChain format
         const langChainMessages = [
           ...messages.map((msg) =>
-            msg.role === 'user'
+            msg.role === "user"
               ? new HumanMessage(msg.content)
               : new AIMessage(msg.content)
           ),
@@ -80,20 +74,17 @@ export async function POST(req: Request) {
 
         try {
           // Create the event stream
-          const eventStream = await submitQuestion(
-            langChainMessages,
-            chatId
-          );
+          const eventStream = await submitQuestion(langChainMessages, chatId);
 
           // Process the events
           for await (const event of eventStream) {
             // console.log("🔄 Event:", event);
 
-            if (event.event === 'on_chat_model_stream') {
+            if (event.event === "on_chat_model_stream") {
               const token = event.data.chunk;
               if (token) {
                 // Access the text property from the AIMessageChunk
-                const text = token.content.at(0)?.['text'];
+                const text = token.content.at(0)?.["text"];
                 if (text) {
                   await sendSSEMessage(writer, {
                     type: StreamMessageType.Token,
@@ -101,58 +92,55 @@ export async function POST(req: Request) {
                   });
                 }
               }
-            } else if (event.event === 'on_tool_start') {
+            } else if (event.event === "on_tool_start") {
               await sendSSEMessage(writer, {
                 type: StreamMessageType.ToolStart,
-                tool: event.name || 'unknown',
+                tool: event.name || "unknown",
                 input: event.data.input,
               });
-            } else if (event.event === 'on_tool_end') {
+            } else if (event.event === "on_tool_end") {
               const toolMessage = new ToolMessage(event.data.output);
 
               await sendSSEMessage(writer, {
                 type: StreamMessageType.ToolEnd,
-                tool: toolMessage.lc_kwargs.name || 'unknown',
+                tool: toolMessage.lc_kwargs.name || "unknown",
                 output: event.data.output,
               });
             }
           }
 
           // Send completion message without storing the response
-          await sendSSEMessage(writer, {
-            type: StreamMessageType.Done,
-          });
+          await sendSSEMessage(writer, { type: StreamMessageType.Done });
         } catch (streamError) {
-          console.error('Error in event stream:', streamError);
+          console.error("Error in event stream:", streamError);
           await sendSSEMessage(writer, {
             type: StreamMessageType.Error,
             error:
               streamError instanceof Error
                 ? streamError.message
-                : 'Stream processing failed',
+                : "Stream processing failed",
           });
         }
       } catch (error) {
-        console.error('Error in stream:', error);
+        console.error("Error in stream:", error);
         await sendSSEMessage(writer, {
           type: StreamMessageType.Error,
-          error:
-            error instanceof Error ? error.message : 'Unknown error',
+          error: error instanceof Error ? error.message : "Unknown error",
         });
       } finally {
         try {
           await writer.close();
         } catch (closeError) {
-          console.error('Error closing writer:', closeError);
+          console.error("Error closing writer:", closeError);
         }
       }
     })();
 
     return response;
   } catch (error) {
-    console.error('Error in chat API:', error);
+    console.error("Error in chat API:", error);
     return NextResponse.json(
-      { error: 'Failed to process chat request' } as const,
+      { error: "Failed to process chat request" } as const,
       { status: 500 }
     );
   }

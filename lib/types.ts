@@ -1,11 +1,11 @@
-import { Id } from '@/convex/_generated/dataModel';
+import { Id } from "@/convex/_generated/dataModel";
 
 // SSE Constants
-export const SSE_DATA_PREFIX = 'data: ' as const;
-export const SSE_DONE_MESSAGE = '[DONE]' as const;
-export const SSE_LINE_DELIMITER = '\n\n' as const;
+export const SSE_DATA_PREFIX = "data: " as const;
+export const SSE_DONE_MESSAGE = "[DONE]" as const;
+export const SSE_LINE_DELIMITER = "\n\n" as const;
 
-export type MessageRole = 'user' | 'assistant';
+export type MessageRole = "user" | "assistant";
 
 export interface Message {
   role: MessageRole;
@@ -13,12 +13,12 @@ export interface Message {
 }
 
 export enum StreamMessageType {
-  Token = 'token',
-  Error = 'error',
-  Connected = 'connected',
-  Done = 'done',
-  ToolStart = 'tool_start',
-  ToolEnd = 'tool_end',
+  Token = "token",
+  Error = "error",
+  Connected = "connected",
+  Done = "done",
+  ToolStart = "tool_start",
+  ToolEnd = "tool_end",
 }
 
 export interface BaseStreamMessage {
@@ -66,5 +66,5 @@ export type StreamMessage =
 export interface ChatRequestBody {
   messages: Message[];
   newMessage: string;
-  chatId: Id<'chats'>;
+  chatId: Id<"chats">;
 }

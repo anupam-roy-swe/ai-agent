@@ -4,36 +4,36 @@ import {
   HumanMessage,
   SystemMessage,
   trimMessages,
-} from '@langchain/core/messages';
-import { ChatAnthropic } from '@langchain/anthropic';
+} from "@langchain/core/messages";
+import { ChatAnthropic } from "@langchain/anthropic";
 import {
   END,
   MessagesAnnotation,
   START,
   StateGraph,
-} from '@langchain/langgraph';
-import { MemorySaver } from '@langchain/langgraph';
-import { ToolNode } from '@langchain/langgraph/prebuilt';
-import wxflows from '@wxflows/sdk/langchain';
+} from "@langchain/langgraph";
+import { MemorySaver } from "@langchain/langgraph";
+import { ToolNode } from "@langchain/langgraph/prebuilt";
+import wxflows from "@wxflows/sdk/langchain";
 import {
   ChatPromptTemplate,
   MessagesPlaceholder,
-} from '@langchain/core/prompts';
-import SYSTEM_MESSAGE from '@/constants/systemMessage';
+} from "@langchain/core/prompts";
+import SYSTEM_MESSAGE from "@/constants/systemMessage";
 
 // Trim the messages to manage conversation history
 const trimmer = trimMessages({
   maxTokens: 10,
-  strategy: 'last',
+  strategy: "last",
   tokenCounter: (msgs) => msgs.length,
   includeSystem: true,
   allowPartial: false,
-  startOn: 'human',
+  startOn: "human",
 });
 
 // Connect to wxflows
 const toolClient = new wxflows({
-  endpoint: process.env.WXFLOWS_ENDPOINT || '',
+  endpoint: process.env.WXFLOWS_ENDPOINT || "",
   apikey: process.env.WXFLOWS_APIKEY,
 });
 
@@ -44,14 +44,14 @@ const toolNode = new ToolNode(tools);
 // Connect to the LLM provider with better tool instructions
 const initialiseModel = () => {
   const model = new ChatAnthropic({
-    modelName: 'claude-3-5-sonnet-20241022',
+    modelName: "claude-3-5-sonnet-20241022",
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     temperature: 0.7,
     maxTokens: 4096,
     streaming: true,
     clientOptions: {
       defaultHeaders: {
-        'anthropic-beta': 'prompt-caching-2024-07-31',
+        "anthropic-beta": "prompt-caching-2024-07-31",
       },
     },
     callbacks: [
@@ -60,7 +60,7 @@ const initialiseModel = () => {
           // console.log("🤖 Starting LLM call");
         },
         handleLLMEnd: async (output) => {
-          console.log('🤖 End LLM call', output);
+          console.log("🤖 End LLM call", output);
           const usage = output.llmOutput?.usage;
           if (usage) {
             // console.log("📊 Token Usage:", {
@@ -90,12 +90,12 @@ function shouldContinue(state: typeof MessagesAnnotation.State) {
 
   // If the LLM makes a tool call, then we route to the "tools" node
   if (lastMessage.tool_calls?.length) {
-    return 'tools';
+    return "tools";
   }
 
   // If the last message is a tool message, route back to agent
-  if (lastMessage.content && lastMessage._getType() === 'tool') {
-    return 'agent';
+  if (lastMessage.content && lastMessage._getType() === "tool") {
+    return "agent";
   }
 
   // Otherwise, we stop (reply to the user)
@@ -107,35 +107,33 @@ const createWorkflow = () => {
   const model = initialiseModel();
 
   return new StateGraph(MessagesAnnotation)
-    .addNode('agent', async (state) => {
+    .addNode("agent", async (state) => {
       // Create the system message content
       const systemContent = SYSTEM_MESSAGE;
 
       // Create the prompt template with system message and messages placeholder
       const promptTemplate = ChatPromptTemplate.fromMessages([
         new SystemMessage(systemContent, {
-          cache_control: { type: 'ephemeral' },
+          cache_control: { type: "ephemeral" },
         }),
-        new MessagesPlaceholder('messages'),
+        new MessagesPlaceholder("messages"),
       ]);
 
       // Trim the messages to manage conversation history
       const trimmedMessages = await trimmer.invoke(state.messages);
 
       // Format the prompt with the current messages
-      const prompt = await promptTemplate.invoke({
-        messages: trimmedMessages,
-      });
+      const prompt = await promptTemplate.invoke({ messages: trimmedMessages });
 
       // Get response from the model
       const response = await model.invoke(prompt);
 
       return { messages: [response] };
     })
-    .addNode('tools', toolNode)
-    .addEdge(START, 'agent')
-    .addConditionalEdges('agent', shouldContinue)
-    .addEdge('tools', 'agent');
+    .addNode("tools", toolNode)
+    .addEdge(START, "agent")
+    .addConditionalEdges("agent", shouldContinue)
+    .addEdge("tools", "agent");
 };
 
 function addCachingHeaders(messages: BaseMessage[]): BaseMessage[] {
@@ -148,9 +146,9 @@ function addCachingHeaders(messages: BaseMessage[]): BaseMessage[] {
   const addCache = (message: BaseMessage) => {
     message.content = [
       {
-        type: 'text',
+        type: "text",
         text: message.content as string,
-        cache_control: { type: 'ephemeral' },
+        cache_control: { type: "ephemeral" },
       },
     ];
   };
@@ -175,10 +173,7 @@ function addCachingHeaders(messages: BaseMessage[]): BaseMessage[] {
   return cachedMessages;
 }
 
-export async function submitQuestion(
-  messages: BaseMessage[],
-  chatId: string
-) {
+export async function submitQuestion(messages: BaseMessage[], chatId: string) {
   // Add caching headers to messages
   const cachedMessages = addCachingHeaders(messages);
   // console.log("🔒🔒🔒 Messages:", cachedMessages);
@@ -193,9 +188,9 @@ export async function submitQuestion(
   const stream = await app.streamEvents(
     { messages: cachedMessages },
     {
-      version: 'v2',
+      version: "v2",
       configurable: { thread_id: chatId },
-      streamMode: 'messages',
+      streamMode: "messages",
       runId: chatId,
     }
   );
